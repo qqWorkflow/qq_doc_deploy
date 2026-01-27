@@ -54,15 +54,26 @@ build_docs() {
 }
 
 get_commit_hash() {
-    git -C /git/current rev-parse HEAD 2>/dev/null || echo ""
+    # Try multiple methods to get commit hash
+    if [ -d "/git/current/.git" ]; then
+        git -C /git/current rev-parse HEAD 2>/dev/null || echo ""
+    elif [ -f "/git/current/.git" ]; then
+        # Worktree - .git is a file pointing to actual git dir
+        git -C /git/current rev-parse HEAD 2>/dev/null || echo ""
+    else
+        # Fallback: use symlink target as "hash"
+        readlink /git/current 2>/dev/null || echo ""
+    fi
 }
 
 # Wait for git-sync to clone repo
 log_info "Waiting for repository..."
-while [ ! -d "/git/current/.git" ]; do
+while [ ! -L "/git/current" ] && [ ! -d "/git/current" ]; do
     sleep 5
+    log_info "Still waiting for /git/current..."
 done
 
+log_info "Found /git/current, waiting for docs directory..."
 while [ ! -d "$SOURCE_DIR/en" ]; do
     sleep 2
 done
@@ -74,7 +85,7 @@ build_docs
 
 # Store initial commit hash
 last_commit=$(get_commit_hash)
-log_info "Current commit: $last_commit"
+log_info "Current version: $last_commit"
 log_info "Watching for changes (polling every ${POLL_INTERVAL}s)..."
 
 # Poll for commit changes
@@ -84,7 +95,7 @@ while true; do
     current_commit=$(get_commit_hash)
 
     if [ -n "$current_commit" ] && [ "$current_commit" != "$last_commit" ]; then
-        log_info "New commit detected: $last_commit -> $current_commit"
+        log_info "New version detected: $last_commit -> $current_commit"
         build_docs
         last_commit=$current_commit
     fi
