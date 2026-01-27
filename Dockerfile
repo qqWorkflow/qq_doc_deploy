@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
-# Install git for commit hash check
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install inotify-tools for watching file changes
+RUN apt-get update && apt-get install -y inotify-tools && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

@@ -1,12 +1,11 @@
 #!/bin/bash
-# Polls for git commit changes and triggers builds
+# Watches for git-sync symlink changes using inotify and triggers builds
 
 set -e
 
 SOURCE_DIR="/git/current/docs"
 BUILD_DIR="/static"
 LOCK_FILE="/tmp/build.lock"
-POLL_INTERVAL=60
 
 log_info() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -53,19 +52,6 @@ build_docs() {
     ) 200>"$LOCK_FILE"
 }
 
-get_commit_hash() {
-    # Try multiple methods to get commit hash
-    if [ -d "/git/current/.git" ]; then
-        git -C /git/current rev-parse HEAD 2>/dev/null || echo ""
-    elif [ -f "/git/current/.git" ]; then
-        # Worktree - .git is a file pointing to actual git dir
-        git -C /git/current rev-parse HEAD 2>/dev/null || echo ""
-    else
-        # Fallback: use symlink target as "hash"
-        readlink /git/current 2>/dev/null || echo ""
-    fi
-}
-
 # Wait for git-sync to clone repo
 log_info "Waiting for repository..."
 while [ ! -L "/git/current" ] && [ ! -d "/git/current" ]; do
@@ -83,20 +69,15 @@ log_info "Repository found."
 # Initial build
 build_docs
 
-# Store initial commit hash
-last_commit=$(get_commit_hash)
-log_info "Current version: $last_commit"
-log_info "Watching for changes (polling every ${POLL_INTERVAL}s)..."
+log_info "Watching /git for symlink changes..."
 
-# Poll for commit changes
-while true; do
-    sleep "$POLL_INTERVAL"
-
-    current_commit=$(get_commit_hash)
-
-    if [ -n "$current_commit" ] && [ "$current_commit" != "$last_commit" ]; then
-        log_info "New version detected: $last_commit -> $current_commit"
+# Watch only /git directory for symlink changes (create, delete, moved_to)
+# This catches when git-sync updates the 'current' symlink
+inotifywait -m -e create -e delete -e moved_to /git 2>/dev/null |
+while read -r directory event filename; do
+    if [ "$filename" = "current" ]; then
+        log_info "Symlink changed: $event - triggering build..."
+        sleep 2  # Wait for git-sync to finish
         build_docs
-        last_commit=$current_commit
     fi
 done
