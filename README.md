@@ -52,3 +52,55 @@ All settings in `.env` file:
 | `GIT_BRANCH` | `main` | Git branch |
 | `SYNC_PERIOD` | `60s` | Sync interval |
 | `HTTP_PORT` | `80` | HTTP port for nginx |
+| `HTTPS_PORT` | `443` | HTTPS port for nginx (optional) |
+
+## HTTPS Setup (Optional)
+
+For local HTTPS with trusted certificates using `mkcert`:
+
+### 1. Install mkcert
+
+**Windows:**
+```bash
+choco install mkcert
+# or
+winget install FiloSottile.mkcert
+```
+
+**Linux:**
+```bash
+sudo apt install mkcert
+```
+
+**macOS:**
+```bash
+brew install mkcert
+```
+
+### 2. Setup Local CA (one-time)
+
+```bash
+mkcert -install
+```
+
+### 3. Generate Certificates
+
+```bash
+mkdir -p certs
+mkcert -key-file certs/server.key -cert-file certs/server.crt localhost 127.0.0.1 ::1
+```
+
+### 4. Enable HTTPS
+
+Uncomment in `.env`:
+```bash
+HTTPS_PORT=443
+```
+
+### 5. Restart
+
+```bash
+docker-compose down && docker-compose up -d
+```
+
+Now accessible at `https://localhost`
